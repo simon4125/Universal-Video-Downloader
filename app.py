@@ -1,5 +1,5 @@
 # ============================================================
-#   VIDEO DOWNLOADER - Flask Backend
+#   VIDEO DOWNLOADER - Flask Backend (UPDATED)
 #   Requirements: pip install flask flask-cors yt-dlp
 #   Also install FFmpeg: https://ffmpeg.org/download.html
 #   Run: python app.py
@@ -40,6 +40,35 @@ def cleanup_old_files():
 threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 
+def get_base_ydl_opts():
+    """ইউটিউবের নতুন অ্যান্টি-বট বাইপাস সেটিংস তৈরি করে"""
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'nocheckcertificate': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        },
+        'extractor_args': {
+            'youtube': {
+                # আপডেট করা প্লেয়ার ক্লায়েন্ট লিস্ট যা সাইন-ইন ব্লক বাইপাস করে
+                'player_client': ['android', 'ios', 'mweb', 'web']
+            }
+        }
+    }
+
+    # cookies.txt ফাইল থাকলে তা কোডে সেট করে
+    if os.path.exists(COOKIE_PATH):
+        opts['cookiefile'] = COOKIE_PATH
+
+    return opts
+
+
 # ─────────────────────────────────────────────
 #  ROUTE: Fetch video info (title, thumbnail, formats)
 # ─────────────────────────────────────────────
@@ -51,26 +80,8 @@ def get_info():
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'geo_bypass': True,
-        'geo_bypass_country': 'US',
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-            'Accept-Language': 'en-US,en;q=0.9',
-        },
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'tv', 'web_creator', 'mweb']
-            }
-        }
-    }
-    
-    # If cookies.txt exists, use it
-    if os.path.exists(COOKIE_PATH):
-        ydl_opts['cookiefile'] = COOKIE_PATH
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts['skip_download'] = True
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -117,6 +128,8 @@ def get_info():
         err_msg = str(e)
         if "not made this video available in your country" in err_msg:
             return jsonify({'error': 'এই ভিডিওটি আপনার অঞ্চলের সার্ভারে ব্লক করা (Geo-Restricted Video)।'}), 400
+        elif "Sign in to confirm you’re not a bot" in err_msg:
+            return jsonify({'error': 'ইউটিউব বট ডিটেক্ট করেছে। অনুগ্রহ করে নিশ্চিত করুন আপনার app.py ফোল্ডারে cookies.txt ফাইলটি আছে।'}), 400
         return jsonify({'error': f'Could not fetch video info: {err_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
@@ -158,29 +171,13 @@ def download_video():
             'preferedformat': 'mp4',
         }]
 
-    ydl_opts = {
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts.update({
         'format': fmt,
         'outtmpl': output_template,
-        'quiet': True,
-        'no_warnings': True,
-        'geo_bypass': True,
-        'geo_bypass_country': 'US',
         'merge_output_format': 'mp4' if not is_audio_only else None,
         'postprocessors': postprocessors,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-            'Accept-Language': 'en-US,en;q=0.9',
-        },
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'tv', 'web_creator', 'mweb']
-            }
-        }
-    }
-
-    # If cookies.txt exists, use it
-    if os.path.exists(COOKIE_PATH):
-        ydl_opts['cookiefile'] = COOKIE_PATH
+    })
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
