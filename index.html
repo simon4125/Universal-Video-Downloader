@@ -749,7 +749,6 @@
       showToast('error', 'Clipboard access denied. Please paste manually.');
     }
   }
-
   // ─────────────────────────────────────────────
   //  FETCH VIDEO INFO
   // ─────────────────────────────────────────────
@@ -776,6 +775,12 @@
         body: JSON.stringify({ url })
       });
 
+      // JSON ডাটা না এসে HTML আসলে হ্যান্ডেল করার জন্য
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server is waking up or returned HTML. Please wait 30 seconds and try again!");
+      }
+
       const data = await response.json();
 
       if (!response.ok || data.error) {
@@ -792,7 +797,6 @@
       setFetchLoading(false);
     }
   }
-
   // ─────────────────────────────────────────────
   //  RENDER VIDEO PREVIEW
   // ─────────────────────────────────────────────
@@ -865,7 +869,7 @@
   }
 
   // ─────────────────────────────────────────────
-  //  START DOWNLOAD
+  //  START DOWNLOAD (Updated Error Handling)
   // ─────────────────────────────────────────────
   async function startDownload() {
     const url = document.getElementById('urlInput').value.trim();
@@ -911,8 +915,13 @@
       clearInterval(interval);
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Server returned ${response.status}`);
+        const contentType = response.headers.get("content-type");
+        let errorMsg = `Server returned ${response.status}`;
+        if (contentType && contentType.includes("application/json")) {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
 
       progressLabel.textContent        = '✅ Download complete!';
