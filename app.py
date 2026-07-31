@@ -18,7 +18,6 @@ app = Flask(__name__)
 CORS(app)  # Allow frontend to communicate with backend
 
 DOWNLOAD_DIR = tempfile.mkdtemp()  # Temp folder for downloaded files
-# Path to cookies file (placed in the same folder as app.py)
 COOKIE_PATH = os.path.join(os.path.dirname(__file__), 'cookies.txt')
 
 
@@ -56,13 +55,11 @@ def get_base_ydl_opts():
         },
         'extractor_args': {
             'youtube': {
-                # tvhtml5 এবং android_creator ক্লায়েন্ট বর্তমানের বট ডিটেকশন এড়াতে সবচেয়ে কার্যকর
                 'player_client': ['tvhtml5', 'android_creator', 'ios', 'mweb']
             }
         }
     }
 
-    # cookies.txt ফাইল থাকলে তা সেট করবে
     if os.path.exists(COOKIE_PATH):
         opts['cookiefile'] = COOKIE_PATH
 
@@ -87,31 +84,33 @@ def get_info():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
-        # Collect unique video qualities
         formats = []
         seen_heights = set()
 
+        # ফরম্যাট ফিল্টারিং ফিক্স করা হয়েছে
         if 'formats' in info:
             for f in reversed(info['formats']):
+                # শুধু ভিডিও স্ট্রিমগুলোর রেজ্যুলেশন চেক করবে
                 height = f.get('height')
-                # নির্দিষ্ট রেজ্যুলেশন থাকলে তা লিস্টে যোগ করা
-                if height and height not in seen_heights:
+                vcodec = f.get('vcodec', 'none')
+                
+                if height and vcodec != 'none' and height not in seen_heights:
                     seen_heights.add(height)
                     formats.append({
-                        'format_id': f.get('format_id', 'best'),
+                        'format_id': f.get('format_id'),
                         'quality': f"{height}p",
-                        'ext': f.get('ext', 'mp4'),
+                        'ext': 'mp4',
                         'filesize': f.get('filesize') or f.get('filesize_approx') or 0
                     })
 
-        # Sort highest quality first
+        # রেজ্যুলেশন অনুযায়ী ক্রমানুসারে সাজানো
         formats.sort(key=lambda x: int(x['quality'].replace('p', '')), reverse=True)
 
-        # Fallback if no specific formats found
+        # যদি কোনো নির্দিষ্ট রেজ্যুলেশন না পাওয়া যায়, তবে সেফ ফলব্যাক
         if not formats:
             formats = [{'format_id': 'bestvideo+bestaudio/best', 'quality': 'Best Available', 'ext': 'mp4', 'filesize': 0}]
 
-        # Add audio-only option
+        # অডিও ডাউনলোডের অপশন যোগ করা
         formats.append({'format_id': 'bestaudio', 'quality': '🎵 Audio Only (MP3)', 'ext': 'mp3', 'filesize': 0})
 
         return jsonify({
@@ -129,7 +128,7 @@ def get_info():
         if "not made this video available in your country" in err_msg:
             return jsonify({'error': 'এই ভিডিওটি আপনার অঞ্চলের সার্ভারে ব্লক করা (Geo-Restricted Video)।'}), 400
         elif "Sign in to confirm you’re not a bot" in err_msg:
-            return jsonify({'error': 'ইউটিউব বট ডিটেক্ট করেছে। অনুগ্রহ করে নিশ্চিত করুন আপনার app.py ফোল্ডারে একটি সঠিক cookies.txt ফাইল আছে।'}), 400
+            return jsonify({'error': 'ইউটিউব বট ডিটেক্ট করেছে। আপনার cookies.txt ফাইলটি আপডেট করুন।'}), 400
         return jsonify({'error': f'Could not fetch video info: {err_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
@@ -150,7 +149,6 @@ def download_video():
     file_id = str(uuid.uuid4())
     output_template = os.path.join(DOWNLOAD_DIR, f"{file_id}.%(ext)s")
 
-    # Determine format selection
     is_audio_only = format_id == 'bestaudio'
 
     if is_audio_only:
@@ -161,6 +159,7 @@ def download_video():
             'preferredquality': '192',
         }]
     else:
+        # Requested format is not available এররটি আটকানোর জন্য সেফ ফরম্যাট স্ট্রিং
         if format_id and format_id not in ('best', 'bestvideo+bestaudio/best'):
             fmt = f"{format_id}+bestaudio/bestvideo+bestaudio/best"
         else:
@@ -184,7 +183,6 @@ def download_video():
             info = ydl.extract_info(url, download=True)
             title = info.get('title', 'video')
 
-        # Find the downloaded file by its UUID prefix
         downloaded_file = None
         file_ext = 'mp3' if is_audio_only else 'mp4'
         
@@ -197,7 +195,6 @@ def download_video():
         if not downloaded_file or not os.path.exists(downloaded_file):
             return jsonify({'error': 'Download failed — file not found.'}), 500
 
-        # Sanitize filename
         safe_title = "".join(
             c for c in title if c.isalnum() or c in (' ', '-', '_', '.')
         ).strip()
