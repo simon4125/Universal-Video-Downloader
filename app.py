@@ -51,7 +51,7 @@ def get_info():
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
 
-   ydl_opts = {
+    ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
@@ -67,7 +67,7 @@ def get_info():
             }
         }
     }
-
+    
     # If cookies.txt exists, use it
     if os.path.exists(COOKIE_PATH):
         ydl_opts['cookiefile'] = COOKIE_PATH
