@@ -50,16 +50,16 @@ def get_info():
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
 
-   ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'mweb']
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'mweb']
+                }
             }
         }
-    }
 
     # If cookies.txt exists, use it
     if os.path.exists(COOKIE_PATH):
