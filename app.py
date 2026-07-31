@@ -41,7 +41,7 @@ threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 
 def get_base_ydl_opts():
-    """ইউটিউবের নতুন অ্যান্টি-বট বাইপাস সেটিংস তৈরি করে"""
+    """ইউটিউবের অ্যান্টি-বট বাইপাস সেটিংস তৈরি করে"""
     opts = {
         'quiet': True,
         'no_warnings': True,
@@ -56,12 +56,13 @@ def get_base_ydl_opts():
         },
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'mweb', 'web']
+                # tvhtml5 এবং android_creator ক্লায়েন্ট বর্তমানের বট ডিটেকশন এড়াতে সবচেয়ে কার্যকর
+                'player_client': ['tvhtml5', 'android_creator', 'ios', 'mweb']
             }
         }
     }
 
-    # cookies.txt ফাইল থাকলে তা কোডে সেট করে
+    # cookies.txt ফাইল থাকলে তা সেট করবে
     if os.path.exists(COOKIE_PATH):
         opts['cookiefile'] = COOKIE_PATH
 
@@ -73,7 +74,7 @@ def get_base_ydl_opts():
 # ─────────────────────────────────────────────
 @app.route('/api/info', methods=['POST'])
 def get_info():
-    data = request.get_json()
+    data = request.get_json() or {}
     url = data.get('url', '').strip()
 
     if not url:
@@ -128,7 +129,7 @@ def get_info():
         if "not made this video available in your country" in err_msg:
             return jsonify({'error': 'এই ভিডিওটি আপনার অঞ্চলের সার্ভারে ব্লক করা (Geo-Restricted Video)।'}), 400
         elif "Sign in to confirm you’re not a bot" in err_msg:
-            return jsonify({'error': 'ইউটিউব বট ডিটেক্ট করেছে। অনুগ্রহ করে নিশ্চিত করুন আপনার app.py ফোল্ডারে cookies.txt ফাইলটি আছে।'}), 400
+            return jsonify({'error': 'ইউটিউব বট ডিটেক্ট করেছে। অনুগ্রহ করে নিশ্চিত করুন আপনার app.py ফোল্ডারে একটি সঠিক cookies.txt ফাইল আছে।'}), 400
         return jsonify({'error': f'Could not fetch video info: {err_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
@@ -139,7 +140,7 @@ def get_info():
 # ─────────────────────────────────────────────
 @app.route('/api/download', methods=['POST'])
 def download_video():
-    data = request.get_json()
+    data = request.get_json() or {}
     url = data.get('url', '').strip()
     format_id = data.get('format_id', 'best')
 
@@ -160,7 +161,6 @@ def download_video():
             'preferredquality': '192',
         }]
     else:
-        # নির্দিষ্ট ফরম্যাট আইডি কাজ না করলে স্বয়ংক্রিয়ভাবে সর্বোত্তম ফরম্যাট সিলেক্ট করবে
         if format_id and format_id not in ('best', 'bestvideo+bestaudio/best'):
             fmt = f"{format_id}+bestaudio/bestvideo+bestaudio/best"
         else:
@@ -186,6 +186,8 @@ def download_video():
 
         # Find the downloaded file by its UUID prefix
         downloaded_file = None
+        file_ext = 'mp3' if is_audio_only else 'mp4'
+        
         for fname in os.listdir(DOWNLOAD_DIR):
             if fname.startswith(file_id):
                 downloaded_file = os.path.join(DOWNLOAD_DIR, fname)
@@ -207,9 +209,10 @@ def download_video():
         @after_this_request
         def remove_file(response):
             def delete_later():
-                time.sleep(5)
+                time.sleep(10)
                 try:
-                    os.remove(downloaded_file)
+                    if os.path.exists(downloaded_file):
+                        os.remove(downloaded_file)
                 except Exception:
                     pass
             threading.Thread(target=delete_later, daemon=True).start()
