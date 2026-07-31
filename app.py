@@ -20,7 +20,7 @@ CORS(app)  # Allow frontend to communicate with backend
 DOWNLOAD_DIR = tempfile.mkdtemp()  # Temp folder for downloaded files
 # Path to cookies file (placed in the same folder as app.py)
 COOKIE_PATH = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-PROXY_URL = "socks5://ujzwwfcp:gabpsqvmkyin@p.webshare.io:1080"
+
 
 # ─────────────────────────────────────────────
 #  Auto-cleanup: delete files older than 5 min
@@ -51,11 +51,12 @@ def get_info():
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
 
-    ydl_opts = {
+   ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
-        'proxy': PROXY_URL,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -159,7 +160,8 @@ def download_video():
         'outtmpl': output_template,
         'quiet': True,
         'no_warnings': True,
-        'proxy': PROXY_URL,
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
         'merge_output_format': 'mp4' if not is_audio_only else None,
         'postprocessors': postprocessors,
         'http_headers': {
