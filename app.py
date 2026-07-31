@@ -54,9 +54,13 @@ def get_info():
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'mweb']
+                'player_client': ['tv', 'web_creator', 'android', 'mweb']
             }
         }
     }
@@ -155,9 +159,13 @@ def download_video():
         'no_warnings': True,
         'merge_output_format': 'mp4' if not is_audio_only else None,
         'postprocessors': postprocessors,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'mweb']
+                'player_client': ['tv', 'web_creator', 'android', 'mweb']
             }
         }
     }
