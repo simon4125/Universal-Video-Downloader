@@ -20,7 +20,7 @@ CORS(app)  # Allow frontend to communicate with backend
 DOWNLOAD_DIR = tempfile.mkdtemp()  # Temp folder for downloaded files
 # Path to cookies file (placed in the same folder as app.py)
 COOKIE_PATH = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-PROXY_URL = "http://ujzwwfcp:gabpsqvmkyin@p.webshare.io:80/"
+PROXY_URL = "socks5://ujzwwfcp:gabpsqvmkyin@p.webshare.io:1080"
 
 # ─────────────────────────────────────────────
 #  Auto-cleanup: delete files older than 5 min
