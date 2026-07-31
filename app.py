@@ -114,7 +114,10 @@ def get_info():
         })
 
     except yt_dlp.utils.DownloadError as e:
-        return jsonify({'error': f'Could not fetch video info: {str(e)}'}), 400
+        err_msg = str(e)
+        if "not made this video available in your country" in err_msg:
+            return jsonify({'error': 'এই ভিডিওটি আপনার অঞ্চলের সার্ভারে ব্লক করা (Geo-Restricted Video)।'}), 400
+        return jsonify({'error': f'Could not fetch video info: {err_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
@@ -223,7 +226,10 @@ def download_video():
         )
 
     except yt_dlp.utils.DownloadError as e:
-        return jsonify({'error': f'Download error: {str(e)}'}), 400
+        err_msg = str(e)
+        if "not made this video available in your country" in err_msg:
+            return jsonify({'error': 'এই ভিডিওটি আপনার অঞ্চলের সার্ভারে ব্লক করা (Geo-Restricted Video)।'}), 400
+        return jsonify({'error': f'Download error: {err_msg}'}), 400
     except Exception as e:
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
