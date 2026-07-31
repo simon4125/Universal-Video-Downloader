@@ -18,6 +18,8 @@ app = Flask(__name__)
 CORS(app)  # Allow frontend to communicate with backend
 
 DOWNLOAD_DIR = tempfile.mkdtemp()  # Temp folder for downloaded files
+# Path to cookies file (placed in the same folder as app.py)
+COOKIE_PATH = os.path.join(os.path.dirname(__file__), 'cookies.txt')
 
 # ─────────────────────────────────────────────
 #  Auto-cleanup: delete files older than 5 min
@@ -48,11 +50,20 @@ def get_info():
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
 
-    ydl_opts = {
+   ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'mweb']
+            }
+        }
     }
+
+    # If cookies.txt exists, use it
+    if os.path.exists(COOKIE_PATH):
+        ydl_opts['cookiefile'] = COOKIE_PATH
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -144,7 +155,16 @@ def download_video():
         'no_warnings': True,
         'merge_output_format': 'mp4' if not is_audio_only else None,
         'postprocessors': postprocessors,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'mweb']
+            }
+        }
     }
+
+    # If cookies.txt exists, use it
+    if os.path.exists(COOKIE_PATH):
+        ydl_opts['cookiefile'] = COOKIE_PATH
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
