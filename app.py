@@ -1,5 +1,5 @@
 # ============================================================
-#   VIDEO DOWNLOADER - Flask Backend (UPDATED)
+#   VIDEO DOWNLOADER - Flask Backend (UPDATED & FIXED)
 #   Requirements: pip install flask flask-cors yt-dlp
 #   Also install FFmpeg: https://ffmpeg.org/download.html
 #   Run: python app.py
@@ -56,7 +56,6 @@ def get_base_ydl_opts():
         },
         'extractor_args': {
             'youtube': {
-                # আপডেট করা প্লেয়ার ক্লায়েন্ট লিস্ট যা সাইন-ইন ব্লক বাইপাস করে
                 'player_client': ['android', 'ios', 'mweb', 'web']
             }
         }
@@ -94,11 +93,11 @@ def get_info():
         if 'formats' in info:
             for f in reversed(info['formats']):
                 height = f.get('height')
-                vcodec = f.get('vcodec', 'none')
-                if vcodec != 'none' and height and height not in seen_heights:
+                # নির্দিষ্ট রেজ্যুলেশন থাকলে তা লিস্টে যোগ করা
+                if height and height not in seen_heights:
                     seen_heights.add(height)
                     formats.append({
-                        'format_id': f['format_id'],
+                        'format_id': f.get('format_id', 'best'),
                         'quality': f"{height}p",
                         'ext': f.get('ext', 'mp4'),
                         'filesize': f.get('filesize') or f.get('filesize_approx') or 0
@@ -109,7 +108,7 @@ def get_info():
 
         # Fallback if no specific formats found
         if not formats:
-            formats = [{'format_id': 'best', 'quality': 'Best Available', 'ext': 'mp4', 'filesize': 0}]
+            formats = [{'format_id': 'bestvideo+bestaudio/best', 'quality': 'Best Available', 'ext': 'mp4', 'filesize': 0}]
 
         # Add audio-only option
         formats.append({'format_id': 'bestaudio', 'quality': '🎵 Audio Only (MP3)', 'ext': 'mp3', 'filesize': 0})
@@ -143,7 +142,6 @@ def download_video():
     data = request.get_json()
     url = data.get('url', '').strip()
     format_id = data.get('format_id', 'best')
-    quality = data.get('quality', 'best')
 
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
@@ -162,10 +160,12 @@ def download_video():
             'preferredquality': '192',
         }]
     else:
-        if format_id and format_id != 'best':
-            fmt = f"{format_id}+bestaudio/best"
+        # নির্দিষ্ট ফরম্যাট আইডি কাজ না করলে স্বয়ংক্রিয়ভাবে সর্বোত্তম ফরম্যাট সিলেক্ট করবে
+        if format_id and format_id not in ('best', 'bestvideo+bestaudio/best'):
+            fmt = f"{format_id}+bestaudio/bestvideo+bestaudio/best"
         else:
             fmt = 'bestvideo+bestaudio/best'
+            
         postprocessors = [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4',
