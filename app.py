@@ -1,7 +1,6 @@
 # ============================================================
-#   VIDEO DOWNLOADER - Flask Backend (AUDIO + VIDEO FIXED)
+#   VIDEO DOWNLOADER - Flask Backend (AUDIO + VIDEO FULL FIXED)
 #   Requirements: pip install flask flask-cors yt-dlp
-#   Make sure FFmpeg is installed on your system / server!
 # ============================================================
 
 from flask import Flask, request, jsonify, send_file, after_this_request
@@ -79,30 +78,42 @@ def get_info():
             info = ydl.extract_info(url, download=False)
 
         formats = []
-        seen_heights = set()
+        seen_qualities = set()
 
         if 'formats' in info:
             for f in reversed(info['formats']):
                 height = f.get('height')
                 vcodec = f.get('vcodec', 'none')
                 
-                # শুধু ভিডিও ট্র্যাক থাকা ফরম্যাটগুলো ফিল্টার করবে
-                if height and vcodec != 'none' and height not in seen_heights:
-                    seen_heights.add(height)
-                    formats.append({
-                        # 'height' বা রেজ্যুলেশন স্ট্রিং পাঠাচ্ছি যাতে ডাউনলোডের সময় ভিডিও+অডিও কম্বাইন করা যায়
-                        'format_id': f"bv*[height={height}]+ba/b[height={height}]/best",
-                        'quality': f"{height}p",
-                        'ext': 'mp4',
-                        'filesize': f.get('filesize') or f.get('filesize_approx') or 0
-                    })
+                if height and vcodec != 'none':
+                    q_str = f"{height}p"
+                    if q_str not in seen_qualities:
+                        seen_qualities.add(q_str)
+                        # ফরম্যাট সিলেকশন যা অডিও সহ মার্জ করা নিশ্চিত করে
+                        fmt_selector = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/best"
+                        formats.append({
+                            'format_id': fmt_selector,
+                            'quality': q_str,
+                            'ext': 'mp4',
+                            'filesize': f.get('filesize') or f.get('filesize_approx') or 0
+                        })
 
-        formats.sort(key=lambda x: int(x['quality'].replace('p', '')) if x['quality'].replace('p', '').isdigit() else 0, reverse=True)
-
+        # রেজ্যুলেশন ফিল্টার কাজ না করলে ফলব্যাক
         if not formats:
-            formats = [{'format_id': 'bestvideo+bestaudio/best', 'quality': 'Best Available', 'ext': 'mp4', 'filesize': 0}]
+            formats = [{
+                'format_id': 'bestvideo+bestaudio/best',
+                'quality': 'Best Quality (Video+Audio)',
+                'ext': 'mp4',
+                'filesize': 0
+            }]
 
-        formats.append({'format_id': 'bestaudio/best', 'quality': '🎵 Audio Only (MP3)', 'ext': 'mp3', 'filesize': 0})
+        # MP3 অপশন
+        formats.append({
+            'format_id': 'bestaudio/best',
+            'quality': '🎵 Audio Only (MP3)',
+            'ext': 'mp3',
+            'filesize': 0
+        })
 
         return jsonify({
             'title': info.get('title', 'Unknown Title'),
@@ -119,7 +130,7 @@ def get_info():
 
 
 # ─────────────────────────────────────────────
-#  ROUTE: Download video (Audio + Video Merged)
+#  ROUTE: Download video (Ensures Audio+Video)
 # ─────────────────────────────────────────────
 @app.route('/api/download', methods=['POST'])
 def download_video():
@@ -148,11 +159,13 @@ def download_video():
             }],
         })
     else:
-        # ভিডিও + অডিও নিশ্চিত করার জন্য 'bestvideo+bestaudio/best' রুল
+        # ভিডিও + অডিও একত্র করার শক্তিশালী রুল
         ydl_opts.update({
-            'format': format_id if format_id else 'bestvideo+bestaudio/best',
+            'format': format_id,
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
+            # যদি অডিও না যুক্ত হতে পারে, তবে অন্তত অডিওসহ সেরা রেজ্যুলেশনের সিঙ্গেল ফাইল নেবে
+            'format_sort': ['res', 'ext:mp4:m4a', 'hasvid', 'hasaud'],
         })
 
     try:
@@ -161,7 +174,6 @@ def download_video():
             title = info.get('title', 'video')
 
         downloaded_file = None
-        
         for fname in os.listdir(DOWNLOAD_DIR):
             if fname.startswith(file_id):
                 downloaded_file = os.path.join(DOWNLOAD_DIR, fname)
@@ -173,7 +185,6 @@ def download_video():
         file_ext = downloaded_file.rsplit('.', 1)[-1]
         safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).strip()[:80] or "video"
         download_name = f"{safe_title}.{file_ext}"
-
         mime = 'audio/mpeg' if file_ext == 'mp3' else 'video/mp4'
 
         @after_this_request
