@@ -1,5 +1,5 @@
 # ============================================================
-#   VIDEO DOWNLOADER - Flask Backend (FFPROBE & AUDIO FIXED)
+#   VIDEO DOWNLOADER - Render Optimized (Audio + Video Fixed)
 #   Requirements: pip install flask flask-cors yt-dlp
 # ============================================================
 
@@ -89,8 +89,8 @@ def get_info():
                     q_str = f"{height}p"
                     if q_str not in seen_qualities:
                         seen_qualities.add(q_str)
-                        # সরলীকৃত ও নিরাপদ ফরম্যাট সিলেকশন স্ট্রিম
-                        fmt_selector = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/b"
+                        # এটি অডিও ও ভিডিও একত্রে নামানোর জন্য নিরাপদ ফরম্যাট স্ট্রিম সেটআপ
+                        fmt_selector = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/b[height<={height}]/best"
                         formats.append({
                             'format_id': fmt_selector,
                             'quality': q_str,
@@ -100,14 +100,14 @@ def get_info():
 
         if not formats:
             formats = [{
-                'format_id': 'bestvideo+bestaudio/best',
-                'quality': 'Best Quality',
+                'format_id': 'bestvideo+bestaudio/best/b',
+                'quality': 'Best Quality (Video+Audio)',
                 'ext': 'mp4',
                 'filesize': 0
             }]
 
         formats.append({
-            'format_id': 'bestaudio',
+            'format_id': 'bestaudio/best',
             'quality': '🎵 Audio Only (MP3)',
             'ext': 'mp3',
             'filesize': 0
@@ -128,13 +128,13 @@ def get_info():
 
 
 # ─────────────────────────────────────────────
-#  ROUTE: Download video (Fix for ffprobe & missing audio)
+#  ROUTE: Download video
 # ─────────────────────────────────────────────
 @app.route('/api/download', methods=['POST'])
 def download_video():
     data = request.get_json() or {}
     url = data.get('url', '').strip()
-    format_id = data.get('format_id', 'bestvideo+bestaudio/best')
+    format_id = data.get('format_id', 'bestvideo+bestaudio/best/b')
 
     if not url:
         return jsonify({'error': 'No URL provided.'}), 400
@@ -142,7 +142,7 @@ def download_video():
     file_id = str(uuid.uuid4())
     output_template = os.path.join(DOWNLOAD_DIR, f"{file_id}.%(ext)s")
 
-    is_audio_only = format_id == 'bestaudio'
+    is_audio_only = 'bestaudio' in format_id
 
     ydl_opts = get_base_ydl_opts()
 
@@ -150,7 +150,6 @@ def download_video():
         ydl_opts.update({
             'format': 'bestaudio/best',
             'outtmpl': output_template,
-            # ffprobe ছাড়া এরর এড়াতে পছন্দনীয় ফরম্যাট এক্সট্র্যাকশন
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -158,12 +157,11 @@ def download_video():
             }],
         })
     else:
-        # ffprobe ছাড়া মার্জিং ফেইল ব্যাক প্রতিরোধ করার জন্য শক্তিশালী ফলব্যাক চেইন
         ydl_opts.update({
-            'format': f"{format_id}/bestvideo+bestaudio/best/b",
+            'format': format_id,
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
-            # ffprobe এরর এড়ানোর জন্য অডিও-ভিডিও যুক্ত কন্টেইনারকে প্রাধান্য দেবে
+            # FFmpeg না থাকলেও অন্তত ভিডিও+অডিও একসাথে থাকা সিঙ্গেল ফাইল নিবে
             'format_sort': ['hasvid', 'hasaud', 'res', 'ext'],
         })
 
